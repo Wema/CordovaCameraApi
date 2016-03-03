@@ -161,6 +161,36 @@ function resizeImageBase64(successCallback, errorCallback, file, targetWidth, ta
    }, function (err) { errorCallback(err); });
 }
 
+
+function resizeImageFromCanvas(buffer, contentType, targetWidth, targetHeight) {
+   var strBase64 = encodeToBase64String(buffer);
+   var imageData = "data:" + contentType + ";base64," + strBase64;
+
+   var image = new Image();
+   image.src = imageData;
+
+   image.onload = function () {
+      var ratio = Math.min(targetWidth / this.width, targetHeight / this.height);
+      var imageWidth = ratio * this.width;
+      var imageHeight = ratio * this.height;
+      var canvas = document.createElement('canvas');
+
+      canvas.width = imageWidth;
+      canvas.height = imageHeight;
+
+      var ctx = canvas.getContext("2d");
+      ctx.drawImage(this, 0, 0, imageWidth, imageHeight);
+
+      // The resized file ready for upload
+      var finalFile = canvas.toDataURL(file.contentType);
+
+      // Remove the prefix such as "data:" + contentType + ";base64," , in order to meet the Cordova API.
+      var arr = finalFile.split(",");
+      var newStr = finalFile.substr(arr[0].length + 1);
+      successCallback(newStr);
+   };
+}
+
 function takePictureFromFile(successCallback, errorCallback, args) {
    // Detect Windows Phone
    if (navigator.appVersion.indexOf('Windows Phone 8.1') >= 0) {
@@ -197,12 +227,7 @@ function takePictureFromFileWP(successCallback, errorCallback, args) {
             else {
                var storageFolder = getAppData().localFolder;
                file.copyAsync(storageFolder, file.name, Windows.Storage.NameCollisionOption.replaceExisting).done(function (storageFile) {
-                  if (destinationType == Camera.DestinationType.NATIVE_URI) {
-                     successCallback("ms-appdata:///local/" + storageFile.name);
-                  }
-                  else {
-                     successCallback(URL.createObjectURL(storageFile));
-                  }
+                  successCallback("ms-appdata:///local/" + storageFile.name);
                }, function () {
                   errorCallback("Can't access localStorage folder.");
                });
@@ -273,12 +298,7 @@ function takePictureFromFileWindows(successCallback, errorCallback, args) {
          else {
             var storageFolder = getAppData().localFolder;
             file.copyAsync(storageFolder, file.name, Windows.Storage.NameCollisionOption.replaceExisting).done(function (storageFile) {
-               if (destinationType == Camera.DestinationType.NATIVE_URI) {
-                  successCallback("ms-appdata:///local/" + storageFile.name);
-               }
-               else {
-                  successCallback(URL.createObjectURL(storageFile));
-               }
+               successCallback("ms-appdata:///local/" + storageFile.name);
             }, function () {
                errorCallback("Can't access localStorage folder.");
             });
@@ -447,6 +467,7 @@ function takePictureFromCameraWP(successCallback, errorCallback, args) {
 
       // Pause and dispose preview element
       capturePreview.pause();
+      URL.revokeObjectURL(capturePreview.src);
       capturePreview.src = null;
 
       // Remove event listeners from buttons
